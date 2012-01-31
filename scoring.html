@@ -1,0 +1,368 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+	<head>
+		<title>Consolidated scores for client demonstrations sessions</title>
+		<meta name="Generator" content="EditPlus">
+		<meta name="Author" content="">
+		<meta name="Keywords" content="">
+		<meta name="Description" content="">
+		<!--<script src="http://code.jquery.com/jquery-1.6.4.min.js"></script>-->
+		<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+		<link rel="stylesheet" type="text/css" media="screen" href="css/ui-lightness/jquery-ui-1.8.16.custom.css" />
+		<link rel="stylesheet" type="text/css" media="screen" href="css/ui.jqgrid.css" />
+		<script remove="1" src="js/i18n/grid.locale-en.js" type="text/javascript"></script>
+		<script remove="1" src="js/jquery.jqGrid.min.js" type="text/javascript"></script>
+		<script>
+			window.hide = 0;
+			var hideFunction = function(){
+				if(hide == 0){
+					$("[id*=res]").hide();
+					$("[id*=ave]").hide();
+					$("#Preview").text('Expand');
+					hide = 1;
+				} else {
+					$("[id*=res]").show();
+					$("[id*=ave]").show();
+					$("#Preview").text('Collapse');
+					hide = 0;
+				}
+			}
+			var popup = function(){
+				$('#Export').remove();
+				$('script[remove]').remove();
+				$('link').each(function(){
+					$.ajax({url: this.href, 
+					async:false,
+					success: function(data){
+						$('head:first').append('<style>' + data + '</style>')
+					}})
+				});
+				$('link').remove();
+				var string = encodeURIComponent($('html:first')[0].innerHTML);
+
+				var uriContent = "data:application/octet-stream," + string;
+				newWindow=window.open(uriContent, 'download.html');
+			}
+
+
+		</script>
+	</head>
+	<body>
+		<div class="control">
+			<button id="Preview" onclick="hideFunction()">Collapse</button>
+			<button id="Export" onclick="popup()">Export</button>
+		</div>
+		<table id="list4"></table>
+		<script type="text/javascript" remove="1">
+			window.res = new Object();
+			window.resMeta = new Object();
+			window.resScores = new Object();
+			window.aveScores = new Object();
+			window.maxScores = new Object();
+			window.totalScore = new Object();
+			window.totalAve = new Object();
+			window.weightedAve = new Object();
+			window.badScores = new Object();
+			window.weightTotal = 0;
+			window.size;
+			window.colsN = new Array();
+
+			$.get("scoring.xml",
+				function(data){
+					dataCapture(data);
+					groupAves();
+					gridDraw();
+					warnings();
+					totalAve();
+					console.log(res);
+					console.log(resMeta);
+					console.log(resScores);
+					console.log(aveScores);
+				}
+			);
+
+
+			var dataCapture = function(data){
+				var person;
+				var group = 1;
+				//setup object structure
+				$(data).find('Worksheet:first').find('Row').find('Cell:first').find('Data').each(function(index) {
+					if(index > 0){
+						//add Question to object
+						res[$(this).text()] = new Object;
+						resMeta[$(this).text()] = new Object;
+						resMeta[$(this).text()]['Question'] = $(this).parent().parent().find('Cell:eq(1)').find('Data').text();
+						resMeta[$(this).text()]['Weight'] = $(this).parent().parent().find('Cell:eq(2)').find('Data').text();
+						resMeta[$(this).text()]['Category'] = $(this).parent().parent().find('Cell:eq(3)').find('Data').text();
+						if(resMeta[$(this).text()]['Category'] == '1'){
+							group = $(this).text();
+						}
+						resMeta[$(this).text()]['Group'] = group;
+						if(!isNaN(res[$(this).text()]['Weight']) && res[$(this).text()]['Weight'] > 0){
+							weightTotal += parseInt(res[$(this).text()]['Weight']);
+						}
+					}
+				})
+				$(data).find('Worksheet:first').remove();
+
+				$(data).find('Worksheet:first').find('Row').each(function(index) {
+					var vendor = $(this).find('Cell').find('Data').text();
+					//add Vendors to each question object
+					if(vendor != ""){
+						for(q in window.res){
+							res[q][index+1] = new Object;
+							res[q][index+1].Name = vendor;
+						}
+					}
+				})
+				$(data).find('Worksheet:first').remove();
+
+				$(data).find('Worksheet').each(function(index) {
+					if(index>0){
+						//add Vendor to object
+						for(q in window.res){
+							for(v in window.res[q]){
+								res[q][v][$(this).attr('ss:Name')] = 0;
+							}
+						}
+					}
+				})
+
+				//add data
+				for(q in window.res){
+					$(data).find('Worksheet').each(function(index) {
+						person = $(this).attr('ss:Name');
+						var scoreRow = $(this).find('Row').filter(function() {
+							return $(this).find('Cell:first').find('Data').text() == q;
+						})
+						$(scoreRow).find('Cell:odd').each(function(i){
+							if(i > 0 && window.res[q][i]){
+								res[q][i][person] = $(this).find('Data').text();
+							}
+							size = i;
+						})
+					})
+
+					//Processing scores
+					resScores[q] = {};
+					resScores[q]['Question'] = resMeta[q]['Question'];
+					resScores[q]['Weight'] = resMeta[q]['Weight'];
+					maxScores[q] = {};
+					for(v in res[q]){
+						var textScore = "";
+						resScores[q][v] = {};
+						maxScores[q][v] = {};
+						maxScores[q][v]['max'] = 0;
+						maxScores[q][v]['min'] = 10;
+
+						if(v != "Question" && v != "Weight" && v != "Category"){
+							for(p in res[q][v]){
+								if(res[q][v][p]){
+									if(p != "Name"){
+										textScore += p + ":" + res[q][v][p] + "/ ";
+										if(parseInt(res[q][v][p]) > maxScores[q][v]['max']){
+											maxScores[q][v]['max'] = parseInt(res[q][v][p]);
+										}
+										if(parseInt(res[q][v][p]) < maxScores[q][v]['min']){
+											maxScores[q][v]['min'] = parseInt(res[q][v][p]);
+										}
+									}
+								}
+							}
+						} else {
+							maxScores[q][v] = "Span";
+							resScores[q][v] = res[q][v];
+							resScores[q][v]['Question'] = resMeta[q][v]['Question'];
+							resScores[q][v]['Weight'] = resMeta[q][v]['Weight'];
+							continue;
+						}
+						textScore = textScore.slice(0, textScore.length - 2);
+						resScores[q][v] = textScore;
+					}
+
+					//Processing Aves
+					aveScores[q] = {};
+					for(v in res[q]){
+						if(resMeta[q]['Category'] == '1'){
+							continue
+						}
+						var textScore = 0;
+						var htmlClass = "ave";
+						aveScores[q][v] = "";
+						maxScores[q][v] = parseInt(maxScores[q][v]['max']) - parseInt(maxScores[q][v]['min']);
+						var dimension = 0;
+						for(p in res[q][v]){
+							if(p != "Name" && parseInt(res[q][v][p]) > 0){
+								textScore = parseInt(res[q][v][p]) + parseInt(textScore);
+								dimension++;
+							}
+						}
+						aveScores[q][v] = Math.round(textScore/dimension*100)/100;
+						if(isNaN(aveScores[q][v])){
+							aveScores[q][v] = "";
+						}
+						if(aveScores[q][v] < 6){
+							htmlClass += " watch";
+						}
+						resScores[q][v] += "<p class='" + htmlClass + "'>Average: " + aveScores[q][v];
+						resScores[q][v] += "<br/>Span: " + maxScores[q][v] + "</p>";
+					}
+				}
+			}
+
+			var groupAves = function(){
+				for (any in res){
+					for(v in res[any]){
+						var dimension = 0;
+						totalScore[v] = 0;
+						var groupsArray = [];
+						var weightsArray = [];
+						var totalWeightsArray = [];
+						for(q in res){
+							if(resMeta[q]['Category'] == '1'){
+								var group = resMeta[q]['Group'];
+								if(!groupsArray[group]){
+									aveScores[group][v] = 0;
+									groupsArray[group] = 0;
+									weightsArray[group] = 0;
+								}
+							} else {
+								for (p in res[q][v]) {
+									if(p != "Name" && !isNaN(parseInt(res[q][v][p]))){
+										totalScore[v] += parseInt(res[q][v][p]);
+									}
+								}
+							}
+						}
+						for(q in res){
+							if(resMeta[q]['Category'] != '1'){
+								if(!isNaN(aveScores[q][v]) && aveScores[q][v] > 0){
+									if(isNaN(parseInt(resMeta[q]['Weight']))){
+										alert(q + " does not have a weighting - (" + q + ")")
+									}
+									var group = resMeta[q]['Group'];
+									aveScores[group][v] += aveScores[q][v] * parseInt(resMeta[q]['Weight']);
+									groupsArray[group]++;
+									weightsArray[group] += parseInt(resMeta[q]['Weight']);
+								}
+							}
+						}
+						for (group in groupsArray){
+							if(weightsArray[group] > 0){
+								groupAve = Math.round(100 * aveScores[group][v] / parseInt( weightsArray[group]))/100;
+								aveScores[group][v] = groupAve;
+								resScores[group][v] += "<p>Average: " + groupAve;
+							}
+						}
+						
+					}
+					return
+				}
+			}
+
+			var gridDraw = function(){
+				var cols = new Array();
+				var width;
+				var name;
+
+				for (any in res){
+					for (v in resMeta[any]){
+						name = resMeta[any][v].Name;
+						if(v == "Question"){
+							width = 300;
+							name = "Question";
+						} else if (v == "Weight") {
+							name = "Weight";
+							width = 50;
+						} else if (v == "Category") {
+							continue;
+						} else {
+							continue;
+						}
+						colsN.push(name);
+						cols.push({name: v,index: v, sortable: false, width:width});
+					}
+					break;
+				}
+
+				for (any in res){
+					for (v in res[any]){
+						name = res[any][v].Name;
+						width = 220;
+						colsN.push(name);
+						cols.push({name: v,index: v, sortable: false, width:width});
+					}
+					break;
+				}
+
+
+				jQuery("#list4").jqGrid({
+					datatype: "local",
+					height: "100%",
+					shrinkToFit:false,
+					colNames:colsN,
+					colModel:cols,
+   					viewrecords: true,
+					caption: ""
+				});
+				var i = 0;
+				for(q in res){
+					if (resMeta[q]['Category'] == "1") {
+						jQuery("#list4").jqGrid('addRowData',i+1+"_cat",resScores[q]);
+					} else {
+						jQuery("#list4").jqGrid('addRowData',i+1+"_res",resScores[q]);
+					}
+					//jQuery("#list4").jqGrid('addRowData',i+1+"_ave",aveScores[q]);
+					//jQuery("#list4").jqGrid('addRowData',i+1+"_max",maxScores[q]);
+					i++;
+				}
+				//jQuery("#list4").jqGrid('groupingGroupBy','Group');
+			}
+
+			var warnings = function(){
+				$("[id*=res]:odd").addClass('alt');
+				$("[id*=cat]").addClass('category');
+				//$("[id*=res]").hide();
+				//$("[id*=max]").hide();
+				var watchList = $('[id*=ave]>td').filter(function(){
+					var span = $(this).text();
+					return parseInt(span) < 5;
+				})
+				watchList.each(function(){
+					var id = $(this).parent().attr('id');
+					var col = $(this).attr('aria-describedby');
+					$('[id='+id.split('_')[0]+'_res]>td[aria-describedby=' + col + ']').addClass('watch');
+				})
+			}
+
+			var totalAve = function(){
+				for (any in res){
+					for (v in res[any]){
+						totalAve[v] = 0;
+						weightedAve[v] = 0;
+						badScores[v]=0;
+						var dimension = 0;
+						var weightTotal = 0;
+						for (q in res) {
+							if(resMeta[q]['Category'] == '1'){
+								weightedAve[v] += parseFloat(aveScores[q][v]) * parseFloat(resMeta[q]['Weight']);
+								dimension++;
+								weightTotal += parseFloat(resMeta[q]['Weight']);
+							}
+						}
+						weightedAve[v] = Math.round(100* weightedAve[v] / parseInt( weightTotal))/100;
+					}
+					weightedAve['Question'] = '<p>Weighted average</p>';
+					weightedAve['Weight'] = '';
+					jQuery("#list4").jqGrid('addRowData', "totAve", weightedAve);
+					totalScore['Question'] = '<p>Total Score</p>';
+					totalScore['Weight'] = '';
+					jQuery("#list4").jqGrid('addRowData', "totAve", totalScore);
+					break;
+				}
+			}
+
+
+		</script>
+	</body>
+</html>
