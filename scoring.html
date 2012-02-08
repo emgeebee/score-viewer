@@ -160,11 +160,11 @@
 								if(res[q][v][p]){
 									if(p != "Name"){
 										textScore += p + ":" + res[q][v][p] + "/ ";
-										if(parseInt(res[q][v][p]) > maxScores[q][v]['max']){
-											maxScores[q][v]['max'] = parseInt(res[q][v][p]);
+										if(parseFloat(res[q][v][p]) > maxScores[q][v]['max']){
+											maxScores[q][v]['max'] = parseFloat(res[q][v][p]);
 										}
-										if(parseInt(res[q][v][p]) < maxScores[q][v]['min']){
-											maxScores[q][v]['min'] = parseInt(res[q][v][p]);
+										if(parseFloat(res[q][v][p]) < maxScores[q][v]['min']){
+											maxScores[q][v]['min'] = parseFloat(res[q][v][p]);
 										}
 									}
 								}
@@ -189,15 +189,15 @@
 						var textScore = 0;
 						var htmlClass = "ave";
 						aveScores[q][v] = "";
-						maxScores[q][v] = parseInt(maxScores[q][v]['max']) - parseInt(maxScores[q][v]['min']);
+						maxScores[q][v] = parseFloat(maxScores[q][v]['max']) - parseFloat(maxScores[q][v]['min']);
 						var dimension = 0;
 						for(p in res[q][v]){
-							if(p != "Name" && parseInt(res[q][v][p]) > 0){
-								textScore = parseInt(res[q][v][p]) + parseInt(textScore);
+							if(p != "Name" && parseFloat(res[q][v][p]) > 0){
+								textScore = parseFloat(res[q][v][p]) + parseFloat(textScore);
 								dimension++;
 							}
 						}
-						aveScores[q][v] = Math.round(textScore/dimension*100)/100;
+						aveScores[q][v] = Math.round(textScore/dimension);
 						if(isNaN(aveScores[q][v])){
 							aveScores[q][v] = "";
 						}
@@ -241,7 +241,7 @@
 										alert(q + " does not have a weighting - (" + q + ")")
 									}
 									var group = resMeta[q]['Group'];
-									aveScores[group][v] += aveScores[q][v] * parseInt(resMeta[q]['Weight']);
+									aveScores[group][v] +=  Math.round(aveScores[q][v]) * parseInt(resMeta[q]['Weight']);
 									groupsArray[group]++;
 									weightsArray[group] += parseInt(resMeta[q]['Weight']);
 								}
